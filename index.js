@@ -7,7 +7,7 @@ const { auth } = require('googleapis/build/src/apis/abusiveexperiencereport');
 const users = require('./users');
 
 // If modifying these scopes, delete token.json.
-const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
+const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'];
 // The file token.json stores the user's access and refresh tokens, and is
 // created automatically when the authorization flow completes for the first
 // time.
@@ -17,7 +17,6 @@ const TOKEN_PATH = 'token.json';
 fs.readFile('credentials.json', (err, content) => {
   if (err) return console.log('Error loading client secret file:', err);
   // Authorize a client with credentials, then call the Gmail API.
-//   authorize(JSON.parse(content), listLabels);
   authorize(JSON.parse(content), getUnreadedMessages);
 });
 
@@ -71,29 +70,7 @@ function getNewToken(oAuth2Client, callback) {
   });
 }
 
-/**
- * Lists the labels in the user's account.
- *
- * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
- */
-function listLabels(auth) {
-  const gmail = google.gmail({version: 'v1', auth});
-  gmail.users.labels.list({
-    userId: 'me',
-  }, (err, res) => {
-    if (err) return console.log('The API returned an error: ' + err);
-    const labels = res.data.labels;
-    if (labels.length) {
-      console.log('Labels:');
-      labels.forEach((label) => {
-        console.log(`- ${label.name}`);
-      });
-    } else {
-      console.log('No labels found.');
-    }
-  });
-}
-
+//get the all anreaded messages
 function getUnreadedMessages(auth){
   const gmail = google.gmail({version:'v1',auth});
   gmail.users.messages.list({
@@ -113,6 +90,7 @@ function getUnreadedMessages(auth){
   })
 }
 
+//Get the data of the selected email
  function getEmail(auth,messageId){
     const gmail = google.gmail({version:'v1',auth});
     gmail.users.messages.get({
@@ -123,9 +101,10 @@ function getUnreadedMessages(auth){
         const message = res.data;
         if(message){
           let sender = message.payload.headers.find((header)=>{
-             return header.name === 'Return-Path'
+             return header.name === 'From'
           })
-          sender = sender.value.replace('<','').replace('>','');
+          sender = sender.value.substring(sender.value.indexOf('<'));
+          sender = sender.replace('<','').replace('>','');
           user = verifyUser(sender);
           if(user){
             var fileName = message.payload.parts[1].filename;
@@ -140,6 +119,15 @@ function getUnreadedMessages(auth){
     });
 }
 
+
+/**
+ get the attchment data by the attachment id
+ and save the attachment in the file directory 
+ * @param {object} auth 
+ * @param {string} messageId 
+ * @param {string} attachmentId 
+ * @param {string} sender 
+ */
 function getAttachment(auth,messageId,attachmentId,sender){
     const gmail = google.gmail({version:'v1',auth});
     gmail.users.messages.attachments.get({
@@ -167,12 +155,13 @@ function getAttachment(auth,messageId,attachmentId,sender){
     })
 }
 
+// verify if the sender is a registred user
 function verifyUser(userName){
   user = users.find((singleUser)=>{
     return singleUser.userName === userName
   });
   if(user === undefined){
-    return console.log(`${user.userName}is not a registred user`);
+    return console.log(`${userName}is not a registred user`);
   }else if(user.userType !== 'email'){
     return console.log(`the order method of user ${userName} is by ${user.userType}`);
   }else{
@@ -180,6 +169,7 @@ function verifyUser(userName){
   }
 }
 
+//sign the email as readed
 function singAsReaded(auth,messageId){
   const gmail = google.gmail({version:'v1',auth});
   gmail.users.messages.modify({
